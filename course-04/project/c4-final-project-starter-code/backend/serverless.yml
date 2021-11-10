@@ -13,16 +13,19 @@ provider:
   name: aws
   runtime: nodejs12.x
   lambdaHashingVersion: '20201221'
+  
+  # Deprecation warning: Starting with next major version, API Gateway naming will be changed from "{stage}-{service}" to "{service}-{stage}".
+  apiGateway:
+    shouldStartNameWithService: true
 
-  stage: ${opt:stage, 'dev'}
-  region: ${opt:region, 'eu-west-1'}
+  # Deprecation warning: Cannot parameterize "stage, region" please use plaintext or pass arguments via command line options.
+  stage: 'dev'
+  region: 'eu-west-1'
 
   tracing:
     lambda: true
     apiGateway: true
 
-  # Use these variables in the functions and resouorces section below. For example, 
-  # ${self:provider.environment.ATTACHMENT_S3_BUCKET}
   environment:
     TODOS_TABLE: Todos-${self:provider.stage}
     TODOS_CREATED_AT_INDEX: CreatedAtIndex
@@ -33,17 +36,7 @@ provider:
     # Enable API Gateway logs
     restApi: true
 
-  iam:
-    role:
-      statements:
-        - Effect: Allow
-          Action:
-            - xray:PutTelemetryRecords
-            - xray:PutTraceSegments
-          Resource: "*"
-
 functions:
-
   Auth:
     handler: src/lambda/auth/auth0Authorizer.handler
 
@@ -94,8 +87,8 @@ functions:
           cors: true
           authorizer: Auth
           request:
-            schemas:
-              application/json: ${file(models/create-todo-model.json)}
+            schema:
+              application/json: ${file(src/models/createTodoRequest.json)}
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -127,12 +120,9 @@ functions:
           path: todos/{todoId}
           authorizer: Auth
           cors: true
-          reqValidatorName: RequestBodyValidator
-          documentation:
-            summary: update an existing todo item
-            description: update an existing todo item
-            requestModels:
-              'application/json': UpdateTodo
+          request:
+            schema:
+              application/json: ${file(src/models/updateTodoRequest.json)}
     iamRoleStatements:
     - Effect: Allow
       Action:
@@ -162,7 +152,7 @@ functions:
           method: delete
           path: todos/{todoId}
           cors: true
-          authorizer: Auth      
+          authorizer: Auth
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -235,15 +225,6 @@ resources:
         ResponseType: DEFAULT_4XX
         RestApiId:
           Ref: ApiGatewayRestApi
-
-    RequestBodyValidator:
-      Type: AWS::ApiGateway::RequestValidator
-      Properties:
-        Name: 'request-body-validator'
-        RestApiId:
-          Ref: 'ApiGatewayRestApi'
-        ValidateRequestBody: true
-        ValidateRequestParameters: false
 
     # DONE
     # Create a DynamoDB table with local secondary index and a composite key
